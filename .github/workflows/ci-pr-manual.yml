@@ -235,3 +235,15 @@ jobs:
             echo ""
             echo "✅ Workflow completed."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Call the Unix CI workflow to actually build and test the PR
+  unix-ci:
+    name: 🧱 Unix Build & Test
+    needs: [label-status]
+    uses: ./.github/workflows/ci-pr-unix.yml
+    permissions:
+      contents: read
+    with:
+      os-list: '["ubuntu-latest", "macos-latest"]'
+      build-types: '["Release", "Debug"]'
+      compilers: '["gcc", "clang"]'
