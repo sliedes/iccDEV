@@ -5,21 +5,11 @@
 #                 https://color.org
 #
 #
-# Intent: Specify the PR to Test Workflow ci-pr-manual
+# Intent: Specify the PR to Test Workflow
 #
-## Last Updated: 28-JAN-2026 1400Z by David Hoyt
-##               Added trusted sanitizer pattern from ci-pr-action.yml
-##               Load sanitize-sed.sh from base commit checkout
-##               Security hardening: SHA validation, concurrency control
-##               Applied Hoyt's bash shell prologue security standards
+# Last Updated: 28-JAN-2026 1400Z by David Hoyt
 #
-# Last Updated: 28-NOV-2025 2300Z by David Hoyt 
-#               Added user controllable input (uci) checks
-# 
-#
-#
-#
-#
+# TODO: ADD SHA Pins
 #
 ###############################################################
 
@@ -57,13 +47,13 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@c2d88d3ecc89a9ef08eebf45d9637801dcee7eb5
+        uses: actions/checkout@v1
         with:
           fetch-depth: 1
           persist-credentials: false
 
       - name: Checkout base commit (trusted sanitizers)
-        uses: actions/checkout@c2d88d3ecc89a9ef08eebf45d9637801dcee7eb5
+        uses: actions/checkout@v1
         with:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
           path: base
@@ -80,7 +70,6 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global credential.helper ""
           unset GITHUB_TOKEN || true
-
           INPUT="${{ github.event.inputs.pr_number }}"
           EVENT_PR="${{ github.event.pull_request.number }}"
           if [[ "$INPUT" =~ ^[0-9]+$ ]] && [[ -n "$INPUT" ]]; then
@@ -90,7 +79,6 @@ jobs:
           else
             echo "pr_number=0" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Evaluate PR combined status
         id: status
         if: steps.get_pr.outputs.pr_number != '0'
@@ -102,7 +90,6 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global credential.helper ""
-
           # SHA validation function
           validate_sha() {
             local sha="$1"
@@ -115,35 +102,28 @@ jobs:
             fi
             return 0
           }
-
           PR="${{ steps.get_pr.outputs.pr_number }}"
-
           # Ensure PR belongs to this repository
           BASE_REPO=$(gh pr view "$PR" --json baseRepository -q .baseRepository.nameWithOwner 2>/dev/null || echo "")
           if [[ -z "$BASE_REPO" || "$BASE_REPO" != "${GITHUB_REPOSITORY}" ]]; then
             echo "status=unknown" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           HEAD=$(gh pr view "$PR" --json headRefOid -q .headRefOid 2>/dev/null || echo "")
           if [[ -z "$HEAD" ]]; then
             echo "status=unknown" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           # Validate SHA format before use
           if ! validate_sha "$HEAD"; then
             echo "Warning: invalid commit SHA format: ${HEAD:0:10}..." >&2
             echo "status=unknown" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           STATE=$(gh api "repos/${{ github.repository }}/commits/$HEAD/status" \
             --jq '.state' 2>/dev/null || echo "unknown")
-
           echo "status=$STATE" >> "$GITHUB_OUTPUT"
           echo "Detected status: $STATE"
-
       - name: Relabel PR based on status
         id: relabel
         if: steps.get_pr.outputs.pr_number != '0' && steps.status.outputs.status != '' && steps.status.outputs.status != 'unknown'
@@ -155,12 +135,10 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global credential.helper ""
-
           PR="${{ steps.get_pr.outputs.pr_number }}"
           STATE="${{ steps.status.outputs.status }}"
           ADDED=""
           REMOVED=""
-
           case "$STATE" in
             success)
               gh pr edit "$PR" --add-label "passed" --remove-label "failed" || true
@@ -176,10 +154,8 @@ jobs:
               echo "No label change required for status: $STATE"
               ;;
           esac
-
           echo "added_label=$ADDED" >> "$GITHUB_OUTPUT"
           echo "removed_label=$REMOVED" >> "$GITHUB_OUTPUT"
-
       - name: Generate summary report
         shell: bash --noprofile --norc {0}
         env:
@@ -193,7 +169,6 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global credential.helper ""
-
           # Load canonical sanitizers from trusted checkout
           TRUSTED_SANITIZER="$GITHUB_WORKSPACE/base/.github/scripts/sanitize-sed.sh"
           if [[ -f "$TRUSTED_SANITIZER" ]]; then
@@ -216,14 +191,12 @@ jobs:
             sanitize_print() { escape_html "$1"; }
             sanitize_line() { escape_html "$1"; }
           fi
-
           # Safe defaults
           : "${GH_EVENT_NAME:=unknown}"
           : "${PR_NUMBER:=0}"
           : "${DETECTED_STATUS:=unknown}"
           : "${LABEL_ADDED:=none}"
           : "${LABEL_REMOVED:=none}"
-
           {
             echo "### 🧾 PR Status Labeler Summary"
             echo ""
@@ -235,14 +208,11 @@ jobs:
             echo ""
             echo "✅ Workflow completed."
           } >> "$GITHUB_STEP_SUMMARY"
-
   # Call the Unix CI workflow to actually build and test the PR
   unix-ci:
     name: 🧱 Unix Build & Test
     needs: [label-status]
     uses: ./.github/workflows/ci-pr-unix.yml
-    permissions:
-      contents: read
     with:
       os-list: '["ubuntu-latest", "macos-latest"]'
       build-types: '["Release", "Debug"]'
