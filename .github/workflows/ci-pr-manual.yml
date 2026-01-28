@@ -1,0 +1,237 @@
+###############################################################
+#
+## Copyright (©) 2025 International Color Consortium. 
+#                 All rights reserved. 
+#                 https://color.org
+#
+#
+# Intent: Specify the PR to Test Workflow ci-pr-manual
+#
+## Last Updated: 28-JAN-2026 1400Z by David Hoyt
+##               Added trusted sanitizer pattern from ci-pr-action.yml
+##               Load sanitize-sed.sh from base commit checkout
+##               Security hardening: SHA validation, concurrency control
+##               Applied Hoyt's bash shell prologue security standards
+#
+# Last Updated: 28-NOV-2025 2300Z by David Hoyt 
+#               Added user controllable input (uci) checks
+# 
+#
+#
+#
+#
+#
+###############################################################
+
+name: ci-pr-manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull request number to process manually'
+        required: false
+        default: ''
+        type: string
+  schedule:
+    - cron: '0 */4 * * *'
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: read
+
+concurrency:
+  group: "label-pr-${{ github.event.pull_request.number || github.run_id }}"
+  cancel-in-progress: true
+
+jobs:
+  label-status:
+    # Allow manual runs from codeowners; PR/schedule events still allowed
+    if: >
+      github.event_name != 'workflow_dispatch' ||
+      contains(fromJson('["xsscx","maxderhak","ChrisCoxArt","dwtza"]'), github.actor)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@c2d88d3ecc89a9ef08eebf45d9637801dcee7eb5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout base commit (trusted sanitizers)
+        uses: actions/checkout@c2d88d3ecc89a9ef08eebf45d9637801dcee7eb5
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: base
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Determine PR number or input
+        id: get_pr
+        shell: bash --noprofile --norc {0}
+        env:
+          BASH_ENV: /dev/null
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global credential.helper ""
+          unset GITHUB_TOKEN || true
+
+          INPUT="${{ github.event.inputs.pr_number }}"
+          EVENT_PR="${{ github.event.pull_request.number }}"
+          if [[ "$INPUT" =~ ^[0-9]+$ ]] && [[ -n "$INPUT" ]]; then
+            echo "pr_number=$INPUT" >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_PR" =~ ^[0-9]+$ ]]; then
+            echo "pr_number=$EVENT_PR" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr_number=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Evaluate PR combined status
+        id: status
+        if: steps.get_pr.outputs.pr_number != '0'
+        shell: bash --noprofile --norc {0}
+        env:
+          BASH_ENV: /dev/null
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global credential.helper ""
+
+          # SHA validation function
+          validate_sha() {
+            local sha="$1"
+            if [[ -z "$sha" ]]; then
+              return 1
+            fi
+            # Require exactly 40 hexadecimal characters
+            if [[ ! "$sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              return 1
+            fi
+            return 0
+          }
+
+          PR="${{ steps.get_pr.outputs.pr_number }}"
+
+          # Ensure PR belongs to this repository
+          BASE_REPO=$(gh pr view "$PR" --json baseRepository -q .baseRepository.nameWithOwner 2>/dev/null || echo "")
+          if [[ -z "$BASE_REPO" || "$BASE_REPO" != "${GITHUB_REPOSITORY}" ]]; then
+            echo "status=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          HEAD=$(gh pr view "$PR" --json headRefOid -q .headRefOid 2>/dev/null || echo "")
+          if [[ -z "$HEAD" ]]; then
+            echo "status=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Validate SHA format before use
+          if ! validate_sha "$HEAD"; then
+            echo "Warning: invalid commit SHA format: ${HEAD:0:10}..." >&2
+            echo "status=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          STATE=$(gh api "repos/${{ github.repository }}/commits/$HEAD/status" \
+            --jq '.state' 2>/dev/null || echo "unknown")
+
+          echo "status=$STATE" >> "$GITHUB_OUTPUT"
+          echo "Detected status: $STATE"
+
+      - name: Relabel PR based on status
+        id: relabel
+        if: steps.get_pr.outputs.pr_number != '0' && steps.status.outputs.status != '' && steps.status.outputs.status != 'unknown'
+        shell: bash --noprofile --norc {0}
+        env:
+          BASH_ENV: /dev/null
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global credential.helper ""
+
+          PR="${{ steps.get_pr.outputs.pr_number }}"
+          STATE="${{ steps.status.outputs.status }}"
+          ADDED=""
+          REMOVED=""
+
+          case "$STATE" in
+            success)
+              gh pr edit "$PR" --add-label "passed" --remove-label "failed" || true
+              ADDED="passed"
+              REMOVED="failed"
+              ;;
+            failure|error)
+              gh pr edit "$PR" --add-label "failed" --remove-label "passed" || true
+              ADDED="failed"
+              REMOVED="passed"
+              ;;
+            *)
+              echo "No label change required for status: $STATE"
+              ;;
+          esac
+
+          echo "added_label=$ADDED" >> "$GITHUB_OUTPUT"
+          echo "removed_label=$REMOVED" >> "$GITHUB_OUTPUT"
+
+      - name: Generate summary report
+        shell: bash --noprofile --norc {0}
+        env:
+          BASH_ENV: /dev/null
+          GH_EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ steps.get_pr.outputs.pr_number }}
+          DETECTED_STATUS: ${{ steps.status.outputs.status }}
+          LABEL_ADDED: ${{ steps.relabel.outputs.added_label }}
+          LABEL_REMOVED: ${{ steps.relabel.outputs.removed_label }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global credential.helper ""
+
+          # Load canonical sanitizers from trusted checkout
+          TRUSTED_SANITIZER="$GITHUB_WORKSPACE/base/.github/scripts/sanitize-sed.sh"
+          if [[ -f "$TRUSTED_SANITIZER" ]]; then
+            # shellcheck disable=SC1090
+            source "$TRUSTED_SANITIZER"
+          else
+            echo "::warning::Trusted sanitizer not found, using fallback" >&2
+            echo "::debug::Using fallback HTML sanitizer" >&2
+            # Fallback: provide a minimal, safe sanitizer to ensure step summaries
+            # are escaped. This is intentionally conservative.
+            escape_html() {
+              local s="$1"
+              s="${s//&/&amp;}"
+              s="${s//</&lt;}"
+              s="${s//>/&gt;}"
+              s="${s//\"/&quot;}"
+              s="${s//\'/&#39;}"
+              printf '%s' "$s"
+            }
+            sanitize_print() { escape_html "$1"; }
+            sanitize_line() { escape_html "$1"; }
+          fi
+
+          # Safe defaults
+          : "${GH_EVENT_NAME:=unknown}"
+          : "${PR_NUMBER:=0}"
+          : "${DETECTED_STATUS:=unknown}"
+          : "${LABEL_ADDED:=none}"
+          : "${LABEL_REMOVED:=none}"
+
+          {
+            echo "### 🧾 PR Status Labeler Summary"
+            echo ""
+            echo "**Trigger Type:** \`$(sanitize_line "$GH_EVENT_NAME")\`"
+            echo "**PR Number:** \`$(sanitize_line "$PR_NUMBER")\`"
+            echo "**Detected Status:** \`$(sanitize_line "$DETECTED_STATUS")\`"
+            echo "**Label Added:** \`$(sanitize_line "$LABEL_ADDED")\`"
+            echo "**Label Removed:** \`$(sanitize_line "$LABEL_REMOVED")\`"
+            echo ""
+            echo "✅ Workflow completed."
+          } >> "$GITHUB_STEP_SUMMARY"
