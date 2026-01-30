@@ -5,13 +5,13 @@
 ##                 https://color.org
 #
 #
-## Intent: ci-pr-555
+## Intent: ci-pr-562
 #
 ## Last Updated: 30-JAN-2026 1800Z by David Hoyt 
 #
 ###############################################################
 
-name: ci-latest-release
+name: ci-pr-562
 
 permissions:
   contents: read
@@ -83,11 +83,11 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global credential.helper ""
           unset GITHUB_TOKEN || true
-          git fetch origin pull/555/head:pr-555
-          git checkout pr-555
+          git fetch origin pull/562/head:pr-562
+          git checkout pr-562
           cd Build
-          cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=$HOME/.local -DCMAKE_BUILD_TYPE=Debug -Wno-dev -DCMAKE_CXX_FLAGS="-g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall" -DENABLE_TOOLS=ON -DENABLE_STATIC_LIBS=ON -DENABLE_SHARED_LIBS=ON Cmake > cmake.log 2>&1
-          make -j$(nproc)
+          CC=clang CXX=clang++ cmake Cmake -DCMAKE_BUILD_TYPE=Debug -Wno-dev -DCMAKE_CXX_FLAGS="-g3 -O1 -Wall -Wextra -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address,undefined -fno-sanitize-recover=address,undefined"
+          make -j32
       - name: Build
         shell: bash
         env:
@@ -104,9 +104,8 @@ jobs:
           for d in ../Build/Tools/*; do
           [ -d "$d" ] && export PATH="$(realpath "$d"):$PATH"
           done 
-          sh CreateAllProfiles.sh
-          sh RunTests.sh
-          find . -iname "*.icc" | wc -l 
+          wget https://github.com/xsscx/fuzz/raw/refs/heads/master/graphics/icc/heap-buffer-overflow-display-CIccFileIO-Read8-IccIO_cpp-Line508.icc
+          iccRoundTrip heap-buffer-overflow-display-CIccFileIO-Read8-IccIO_cpp-Line508.icc
       - name: Verify CMake Cache
         shell: bash
         env:
