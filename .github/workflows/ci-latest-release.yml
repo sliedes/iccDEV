@@ -5,21 +5,13 @@
 ##                 https://color.org
 #
 #
-## Intent: ci-latest-release
+## Intent: ci-pr-555
 #
-## Last Updated: 22-NOV-2025 0000Z by David Hoyt 
-#                Add Permission Block
-## TODO: Push binary releases, tags etc...
-#
-##
-#
-#
-#
-#
+## Last Updated: 30-JAN-2026 1800Z by David Hoyt 
 #
 ###############################################################
 
-name: ci-pr-546
+name: ci-latest-release
 
 permissions:
   contents: read
@@ -91,8 +83,8 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global credential.helper ""
           unset GITHUB_TOKEN || true
-          git fetch origin pull/546/head:pr-546
-          git checkout pr-546
+          git fetch origin pull/555/head:pr-555
+          git checkout pr-555
           cd Build
           cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=$HOME/.local -DCMAKE_BUILD_TYPE=Debug -Wno-dev -DCMAKE_CXX_FLAGS="-g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall" -DENABLE_TOOLS=ON -DENABLE_STATIC_LIBS=ON -DENABLE_SHARED_LIBS=ON Cmake > cmake.log 2>&1
           make -j$(nproc)
@@ -115,8 +107,6 @@ jobs:
           sh CreateAllProfiles.sh
           sh RunTests.sh
           find . -iname "*.icc" | wc -l 
-          wget https://github.com/xsscx/fuzz/raw/refs/heads/master/graphics/tif/ub-enum-icSparseMatrixType-IccTagBasic_cpp-L4690.tiff
-          iccTiffDump ub-enum-icSparseMatrixType-IccTagBasic_cpp-L4690.tiff
       - name: Verify CMake Cache
         shell: bash
         env:
