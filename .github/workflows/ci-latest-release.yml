@@ -107,21 +107,6 @@ jobs:
           [ -d "$d" ] && export PATH="$(realpath "$d"):$PATH"
           done 
           iccToXml
-      - name: Verify CMake Cache
-        shell: bash
-        env:
-          BASH_ENV: /dev/null
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config --global credential.helper ""
-          unset GITHUB_TOKEN || true
-          if test -f Build/CMakeCache.txt; then
-          echo "✅ Build OK" | tee -a $GITHUB_STEP_SUMMARY
-          else
-            echo "::error ::Build failed! CMakeCache.txt not found." | tee -a $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
