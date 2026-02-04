@@ -85,6 +85,7 @@ jobs:
           unset GITHUB_TOKEN || true
           git fetch origin pull/581/head:pr-581
           git checkout pr-581
+          git show --no-patch --oneline
           cd Build
           CC=clang CXX=clang++ cmake Cmake -DCMAKE_BUILD_TYPE=Debug -Wno-dev -DCMAKE_CXX_FLAGS="-g3 -O1 -Wall -Wextra -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address,undefined -fno-sanitize-recover=address,undefined"
           make -j32
