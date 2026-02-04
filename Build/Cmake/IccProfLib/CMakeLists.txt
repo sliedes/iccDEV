@@ -3,10 +3,20 @@
 # Copyright (©) 2024-2025 The International Color Consortium. 
 #                                        All rights reserved.
 # 
-#  Last Updated: 02-FEB-2026 at 1426Z by David Hoyt
 #
-#  Changes: Modify Version String to v2.3.1.3
-#           
+#  Last Updated: 24-MAR-2025 1222 EDT by David Hoyt
+#  date -d @1742833338
+#  Mon Mar 24 12:22:18 EDT 2025
+#
+# Changes:  Modified output target to fix a few subproject pathing issues
+#           Added to CMakelists.txt: IccPngDump
+#           Adjusted Cross Platform Build Args
+#						
+# TODO: Refactor Debug, Release, Asan, subproject pathing issues
+#       Collapse 3-tier CMakeLists.txt, Housekeeping
+#       Refactor Base Configs & logging to .mk's 
+#
+#
 #################################################################################
 
 SET( TARGET_NAME IccProfLib2)
@@ -90,11 +100,11 @@ IF(ENABLE_INSTALL_RIM)
     ${SRC_PATH}/IccProfLib/IccUtil.h
     ${SRC_PATH}/IccProfLib/IccWrapper.h
     ${SRC_PATH}/IccProfLib/IccXformFactory.h
+    ${SRC_PATH}/IccProfLib/icProfileHeader.h
     ${SRC_PATH}/IccProfLib/IccMD5.h
     ${SRC_PATH}/IccProfLib/IccSignatureUtils.h
     ${SRC_PATH}/IccProfLib/IccSearch.h
     ${SRC_PATH}/IccProfLib/IccCmmSearch.h
-    ${SRC_PATH}/IccProfLib/icProfileHeader.h
   )
   INSTALL( FILES
 	     ${HEADERS_PUBLIC}
@@ -115,14 +125,9 @@ ENDIF()
 IF(ENABLE_SHARED_LIBS)
   ADD_LIBRARY(${TARGET_NAME} SHARED ${SOURCES})
 
-set_target_properties(${TARGET_NAME}
-    PROPERTIES
-        VERSION   "${${PROJECT_UP_NAME}_VERSION}"
-        SOVERSION "${${PROJECT_UP_NAME}_MAJOR_VERSION}"
-)
-
-  # Enforce C++17 standard per-target
-  target_compile_features(${TARGET_NAME} PUBLIC cxx_std_17)
+  SET_TARGET_PROPERTIES(${TARGET_NAME}
+    PROPERTIES VERSION ${${PROJECT_UP_NAME}_VERSION}
+               SOVERSION ${${PROJECT_UP_NAME}_MAJOR_VERSION})
 
   TARGET_LINK_LIBRARIES(${TARGET_NAME} ${EXTRA_LIBS} ${EXTRA_LIBS_CS})
 
@@ -137,9 +142,6 @@ ENDIF()
 IF(ENABLE_STATIC_LIBS)
   ADD_LIBRARY(${TARGET_NAME}-static STATIC ${SOURCES})
   SET_TARGET_PROPERTIES(${TARGET_NAME}-static PROPERTIES OUTPUT_NAME "${TARGET_NAME}-static")
-
-  # Enforce C++17 standard per-target
-  target_compile_features(${TARGET_NAME}-static PUBLIC cxx_std_17)
 
   TARGET_LINK_LIBRARIES(${TARGET_NAME}-static ${EXTRA_LIBS} ${EXTRA_LIBS_CS})
 

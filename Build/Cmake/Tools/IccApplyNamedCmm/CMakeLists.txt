@@ -1,63 +1,53 @@
-# 
-# IccApplyNamedCmm CMakeLists.txt | iccDEV Project
-# Copyright (©) 2024-2026 The International Color Consortium. All rights reserved.
-# 
 #
-# Last Updated: 02-JAN-2026 at 0230Z by David Hoyt
+# IccApplyNamedCmm CMakeLists.txt | DemoIccMAX Project
+# Copyright (©) 2024 The International Color Consortium. All rights reserved.
 #
-# Changes: 	Fixups for ApplyNamedCmm & NamedProfiles CMakeLists.txt
-#		Make windows ASAN Changes				
-#               
 #
+# Last Updated: 09-APRIL-2025 at 1300 EDT by David Hoyt
+#
+# Changes:      Added JSON Dependency
+#               Adjusted Cross Platform Build Args
 #
 #
 #
 #
 #
-#
-#
-#
-#
+option(ENABLE_ICCAPPLYNAMEDCMM "Build iccApplyNamedCmm tool" ON)
 
-# ---- Sources root ----
-# Reminder: CMAKE_SOURCE_DIR is Build/Cmake; the repo root is two levels up.
-set(SRC_ROOT "${CMAKE_SOURCE_DIR}/../..")
+if(ENABLE_ICCAPPLYNAMEDCMM)
+  set(NLOHMANN_JSON_INCLUDE_DIR "${CMAKE_BINARY_DIR}/_deps/nlohmann_json-src/include")
 
-# ---- Dependencies ----
-find_package(nlohmann_json REQUIRED)
+  if(EXISTS "${NLOHMANN_JSON_INCLUDE_DIR}/nlohmann/json.hpp")
+    include_directories(${NLOHMANN_JSON_INCLUDE_DIR})
 
-# ---- Target ----
-if(NOT TARGET iccApplyNamedCmm)
+    if(NOT TARGET iccApplyNamedCmm)
+      set(SRC_PATH ../../../..)
 
-  set(SOURCES
-    "${SRC_ROOT}/Tools/CmdLine/IccApplyNamedCmm/iccApplyNamedCmm.cpp"
-    "${SRC_ROOT}/Tools/CmdLine/IccCommon/IccCmmConfig.cpp"
-    "${SRC_ROOT}/Tools/CmdLine/IccCommon/IccJsonUtil.cpp"
-  )
+      set(SOURCES
+        ${SRC_PATH}/Tools/CmdLine/IccApplyNamedCmm/iccApplyNamedCmm.cpp
+        ${SRC_PATH}/Tools/CmdLine/IccCommon/IccCmmConfig.cpp
+        ${SRC_PATH}/Tools/CmdLine/IccCommon/IccJsonUtil.cpp
+      )
 
-  add_executable(iccApplyNamedCmm ${SOURCES})
+      set(TARGET_NAME iccApplyNamedCmm)
 
-  set_target_properties(iccApplyNamedCmm PROPERTIES
-    LINKER_LANGUAGE CXX
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-  )
+      include_directories(${SRC_PATH}/Tools/CmdLine/IccCommon)
 
-  target_include_directories(iccApplyNamedCmm PRIVATE
-    "${SRC_ROOT}/Tools/CmdLine/IccApplyProfiles"
-  )
+      add_executable(${TARGET_NAME} ${SOURCES})
+      target_link_libraries(${TARGET_NAME} ${TARGET_LIB_ICCPROFLIB})
 
-  target_link_libraries(iccApplyNamedCmm PRIVATE
-    ${TARGET_LIB_ICCPROFLIB}
-    IccXML2
-    nlohmann_json::nlohmann_json
-  )
+      if(TIFF_LIBRARY)
+        message(STATUS "Linking TIFF_LIBRARY: ${TIFF_LIBRARY}")
+        target_link_libraries(${TARGET_NAME} ${TIFF_LIBRARY})
+      endif()
 
-  if(ENABLE_INSTALL_RIM)
-    install(TARGETS iccApplyNamedCmm DESTINATION ${CMAKE_INSTALL_BINDIR})
+      if(ENABLE_INSTALL_RIM)
+        install(TARGETS ${TARGET_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
+      endif()
+    else()
+      message(WARNING "Target ${TARGET_NAME} already exists. Skipping duplicate addition.")
+    endif()
+  else()
+    message(WARNING "Skipping iccApplyNamedCmm: json.hpp not found in ${NLOHMANN_JSON_INCLUDE_DIR}/nlohmann/")
   endif()
-
-else()
-  message(STATUS "iccApplyNamedCmm already defined; skipping.")
 endif()
