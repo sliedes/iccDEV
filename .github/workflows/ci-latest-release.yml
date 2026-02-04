@@ -5,13 +5,13 @@
 ##                 https://color.org
 #
 #
-## Intent: ci-pr-581
+## Intent: ci-pr-583
 #
-## Last Updated: 94-FEB-2026 1400Z by David Hoyt 
+## Last Updated: 03-FEB-2026 2245Z by David Hoyt 
 #
 ###############################################################
 
-name: ci-pr-581
+name: ci-pr-583
 
 permissions:
   contents: read
@@ -83,9 +83,8 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global credential.helper ""
           unset GITHUB_TOKEN || true
-          git fetch origin pull/581/head:pr-581
-          git checkout pr-581
-          git show --no-patch --oneline
+          git fetch origin pull/583/head:pr-583
+          git checkout pr-583
           cd Build
           CC=clang CXX=clang++ cmake Cmake -DCMAKE_BUILD_TYPE=Debug -Wno-dev -DCMAKE_CXX_FLAGS="-g3 -O1 -Wall -Wextra -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address,undefined -fno-sanitize-recover=address,undefined"
           make -j32
