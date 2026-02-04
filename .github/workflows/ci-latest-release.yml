@@ -105,8 +105,7 @@ jobs:
           for d in ../Build/Tools/*; do
           [ -d "$d" ] && export PATH="$(realpath "$d"):$PATH"
           done 
-          wget https://github.com/xsscx/fuzz/raw/refs/heads/master/graphics/icc/heap-buffer-overflow-display-CIccFileIO-Read8-IccIO_cpp-Line508.icc
-          iccRoundTrip heap-buffer-overflow-display-CIccFileIO-Read8-IccIO_cpp-Line508.icc
+          iccToXml
       - name: Verify CMake Cache
         shell: bash
         env:
